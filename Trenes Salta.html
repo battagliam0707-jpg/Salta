@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trenes Regionales de Salta · Güemes – Salta – Campo Quijano</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    html, body { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #020617; }
+    #map { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; }
+
+    .train-ball {
+      width: 24px; height: 24px; border-radius: 9999px; border: 2.5px solid #ffffff;
+      display: flex; align-items: center; justify-content: center; transition: transform 0.08s linear;
+    }
+    .train-ball-arrow { width: 12px; height: 12px; display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.85)); }
+
+    .train-ball-g-s  { background-color: #0284c7; box-shadow: 0 0 15px rgba(2,132,199,1), 0 0 5px #ffffff; }
+    .train-ball-s-g  { background-color: #f59e0b; box-shadow: 0 0 15px rgba(245,158,11,1), 0 0 5px #ffffff; }
+    .train-ball-s-cq { background-color: #10b981; box-shadow: 0 0 15px rgba(16,185,129,1), 0 0 5px #ffffff; }
+    .train-ball-cq-s { background-color: #a855f7; box-shadow: 0 0 15px rgba(168,85,247,1), 0 0 5px #ffffff; }
+
+    .leaflet-tooltip.cabecera-label {
+      background-color: rgba(2, 6, 23, 0.92); color: #f8fafc;
+      border: 1.5px solid rgba(56, 189, 248, 0.85); border-radius: 6px;
+      padding: 2.5px 8px; font-size: 11px; font-weight: 700;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.75); white-space: nowrap;
+    }
+    .leaflet-tooltip.cabecera-label::before,
+    .leaflet-tooltip.station-label::before { display: none; }
+
+    .leaflet-tooltip.station-label {
+      background-color: rgba(15, 23, 42, 0.86); color: #f1f5f9;
+      border: 1px solid rgba(148, 163, 184, 0.45); border-radius: 5px;
+      padding: 1.5px 6px; font-size: 9.5px; font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.65); white-space: nowrap;
+      transition: opacity 0.18s ease, visibility 0.18s ease;
+    }
+
+    #map.hide-intermediate-labels .leaflet-tooltip.station-label {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .leaflet-control-layers {
+      background-color: rgba(2, 6, 23, 0.85) !important; color: #f8fafc !important;
+      border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 12px !important;
+      padding: 6px 10px !important; backdrop-filter: blur(8px);
+    }
+    .leaflet-control-layers-expanded label { color: #f8fafc !important; font-size: 11.5px !important; }
+
+    input[type="range"].clean-slider {
+      -webkit-appearance: none; appearance: none; background: rgba(148, 163, 184, 0.25);
+      height: 4px; border-radius: 9999px; outline: none;
+    }
+    input[type="range"].clean-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 12px; height: 12px;
+      border-radius: 9999px; background: #38bdf8; border: 2px solid #ffffff; cursor: pointer;
+    }
+  </style>
+</head>
+<body class="text-slate-100 select-none">
+
+  <div id="map"></div>
+
+  <header id="top-header" class="fixed top-3 left-3 right-3 z-20 flex justify-center pointer-events-none">
+    <div class="bg-slate-950/85 backdrop-blur-md border border-white/15 rounded-2xl px-3.5 py-2.5 sm:px-5 sm:py-3 shadow-2xl text-center max-w-2xl w-full pointer-events-auto space-y-1.5">
+      <div class="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+        <button
+          type="button"
+          data-regime="mon_fri"
+          class="regime-btn inline-flex items-center gap-1.5 text-[10.5px] sm:text-xs font-extrabold uppercase tracking-wider px-2.5 sm:px-3 py-1 rounded-full bg-sky-400 text-slate-950 border border-sky-200 shadow transition cursor-pointer"
+        >
+          <span class="w-2 h-2 rounded-full bg-slate-950 inline-block"></span>
+          <span>Lunes a viernes</span>
+        </button>
+
+        <button
+          type="button"
+          data-regime="saturday"
+          class="regime-btn inline-flex items-center gap-1.5 text-[10.5px] sm:text-xs font-extrabold uppercase tracking-wider px-2.5 sm:px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-slate-300 border border-white/20 transition cursor-pointer"
+        >
+          <span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+          <span>Sábados</span>
+        </button>
+
+        <button
+          type="button"
+          data-regime="sunday"
+          class="regime-btn inline-flex items-center gap-1.5 text-[10.5px] sm:text-xs font-extrabold uppercase tracking-wider px-2.5 sm:px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-slate-300 border border-white/20 transition cursor-pointer"
+        >
+          <span class="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>
+          <span>Domingos (Sin servicio)</span>
+        </button>
+      </div>
+
+      <h1 class="text-sm sm:text-lg font-extrabold tracking-tight text-white leading-tight">
+        Trenes Regionales de Salta · Güemes – Salta – Campo Quijano
+      </h1>
+    </div>
+  </header>
+
+  <footer id="bottom-bar" class="fixed bottom-3 left-3 right-3 z-20 flex justify-center pointer-events-none">
+    <div class="w-full max-w-4xl bg-slate-950/85 backdrop-blur-md border border-white/15 rounded-2xl px-3.5 py-2.5 sm:px-5 sm:py-3 shadow-2xl pointer-events-auto space-y-2">
+
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between sm:justify-start gap-2">
+          <button id="clock-toggle-btn" type="button" title="Pausar o reanudar" class="flex items-center gap-1.5 text-left cursor-pointer group">
+            <span id="clock-display" class="text-xl sm:text-2xl font-extrabold text-white tabular-nums tracking-tight group-hover:text-sky-300 transition">06:15:00</span>
+            <span id="play-state-badge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-200 group-hover:bg-white/20 transition">❚❚</span>
+          </button>
+
+          <div class="inline-flex items-center bg-slate-900/90 border border-white/15 rounded-full p-0.5 gap-0.5" role="group">
+            <button type="button" data-speed="60"  title="60x tiempo real (1 seg = 1 min)"  class="speed-btn text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full text-slate-300 hover:text-white cursor-pointer transition">60x</button>
+            <button type="button" data-speed="150" title="150x tiempo real (1 seg = 2m 30s)" class="speed-btn text-[10px] font-extrabold px-2 sm:px-2.5 py-0.5 rounded-full bg-sky-500/30 text-sky-200 border border-sky-400/50 cursor-pointer transition">150x</button>
+            <button type="button" data-speed="300" title="300x tiempo real (1 seg = 5 min)" class="speed-btn text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full text-slate-300 hover:text-white cursor-pointer transition">300x</button>
+            <button type="button" data-speed="600" title="600x tiempo real (1 seg = 10 min)" class="speed-btn text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full text-slate-300 hover:text-white cursor-pointer transition">600x</button>
+            <button type="button" data-speed="900" title="900x tiempo real (1 seg = 15 min)" class="speed-btn text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full text-slate-300 hover:text-white cursor-pointer transition">900x</button>
+          </div>
+
+          <span id="active-count-pill" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30 tabular-nums">
+            0 en circulación
+          </span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] sm:text-[11px] text-slate-300">
+          <span><strong class="text-white">Güemes–Salta:</strong> 46 km (1h 35m)</span>
+          <span class="text-slate-600">•</span>
+          <span><strong class="text-white">Salta–C. Quijano:</strong> 40 km (1h 36m)</span>
+        </div>
+      </div>
+
+      <input id="time-slider" type="range" min="0" max="1439" value="375" class="w-full clean-slider" />
+
+      <div class="pt-1 border-t border-white/10">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] sm:text-[11px]">
+            <span class="font-bold text-slate-200 tracking-tight">Trenes en movimiento (24 h)</span>
+            <span id="chart-subtitle" class="text-slate-400">8 servicios diarios · Lunes a viernes</span>
+          </div>
+          <button id="toggle-chart-btn" type="button" class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/15 text-slate-200 border border-white/15 cursor-pointer transition shrink-0">
+            Ocultar gráfico
+          </button>
+        </div>
+
+        <div id="chart-container" class="relative w-full h-[126px] sm:h-[138px] rounded-xl bg-slate-900/65 border border-white/10 overflow-hidden">
+          <canvas id="evolution-chart" class="w-full h-full block cursor-crosshair"></canvas>
+          <div id="chart-hover-tooltip" class="hidden pointer-events-none absolute z-30 bg-slate-950/95 border border-white/25 rounded-lg px-2.5 py-1.5 text-[10.5px] text-slate-100 shadow-xl backdrop-blur-md leading-snug"></div>
+        </div>
+      </div>
+
+      <div class="pt-1 border-t border-white/10 flex flex-wrap items-center justify-center sm:justify-between gap-x-2.5 gap-y-1.5 text-[10.5px] sm:text-[11.5px] font-medium text-slate-200">
+        <button type="button" data-filter-line="ALL" class="line-filter-btn flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/15 text-white font-bold ring-1 ring-white/30 cursor-pointer transition">
+          <span id="label-filter-all">Todos (8)</span>
+        </button>
+        <button type="button" data-filter-line="Güemes → Salta" class="line-filter-btn flex items-center gap-1.5 px-1.5 py-0.5 rounded-md hover:text-white cursor-pointer transition">
+          <span class="w-3 h-3 rounded-full bg-[#0284c7] border-2 border-white inline-block shadow"></span>
+          <span id="label-filter-g-s">Güemes → Salta (3)</span>
+        </button>
+        <button type="button" data-filter-line="Salta → Güemes" class="line-filter-btn flex items-center gap-1.5 px-1.5 py-0.5 rounded-md hover:text-white cursor-pointer transition">
+          <span class="w-3 h-3 rounded-full bg-[#f59e0b] border-2 border-white inline-block shadow"></span>
+          <span id="label-filter-s-g">Salta → Güemes (3)</span>
+        </button>
+        <button type="button" data-filter-line="Salta → Campo Quijano" class="line-filter-btn flex items-center gap-1.5 px-1.5 py-0.5 rounded-md hover:text-white cursor-pointer transition">
+          <span class="w-3 h-3 rounded-full bg-[#10b981] border-2 border-white inline-block shadow"></span>
+          <span id="label-filter-s-cq">Salta → C. Quijano (1)</span>
+        </button>
+        <button type="button" data-filter-line="Campo Quijano → Salta" class="line-filter-btn flex items-center gap-1.5 px-1.5 py-0.5 rounded-md hover:text-white cursor-pointer transition">
+          <span class="w-3 h-3 rounded-full bg-[#a855f7] border-2 border-white inline-block shadow"></span>
+          <span id="label-filter-cq-s">C. Quijano → Salta (1)</span>
+        </button>
+        <span class="text-[10px] text-slate-500">· @mbattaglia07</span>
+      </div>
+
+    </div>
+  </footer>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    const googleHybridLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: 'Map data &copy; Google', maxZoom: 20
+    });
+    const esriSatelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri', maxZoom: 18
+    });
+    const argenmapLayer = L.tileLayer('https://wms.ign.gob.ar/geoserver/gwc/service/tms/1.0.0/capabaseargenmap@EPSG%3A3857@png/{z}/{x}/{-y}.png', {
+      attribution: 'IGN Argentina - Argenmap', minZoom: 3, maxZoom: 18
+    });
+
+    const map = L.map('map', { zoomControl: false, attributionControl: false, layers: [googleHybridLayer] }).setView([-24.81, -65.35], 10);
+    L.control.layers({ 'Google Hybrid': googleHybridLayer, 'Esri Satélite': esriSatelliteLayer, 'Argenmap (IGN)': argenmapLayer }, null, { position: 'topright' }).addTo(map);
+
+    let googleTileErrors = 0;
+    googleHybridLayer.on('tileerror', () => {
+      if (++googleTileErrors >= 6 && map.hasLayer(googleHybridLayer)) {
+        map.removeLayer(googleHybridLayer);
+        map.addLayer(esriSatelliteLayer);
+      }
+    });
+
+    const LINE_META = {
+      "Güemes → Salta":        { color: "#0284c7", ballClass: "train-ball train-ball-g-s" },
+      "Salta → Güemes":        { color: "#f59e0b", ballClass: "train-ball train-ball-s-g" },
+      "Salta → Campo Quijano": { color: "#10b981", ballClass: "train-ball train-ball-s-cq" },
+      "Campo Quijano → Salta": { color: "#a855f7", ballClass: "train-ball train-ball-cq-s" }
+    };
+
+    const CORRIDOR_BOUNDS = [[-25.00, -65.67], [-24.63, -65.02]];
+
+    // Estaciones oficiales del corredor Güemes – Salta – Campo Quijano
+    const STATIONS = {
+      "Güemes": {
+        coords: [-24.669066, -65.046185],
+        terminal: true,
+        accentColor: "#38bdf8",
+        labelDir: "right",
+        labelOffset: [10, 0]
+      },
+      "Campo Santo (El Bordo)": {
+        coords: [-24.663200, -65.106701],
+        terminal: false,
+        labelDir: "bottom",
+        labelOffset: [0, 9]
+      },
+      "Betania": {
+        coords: [-24.707815, -65.225139],
+        terminal: false,
+        labelDir: "top",
+        labelOffset: [0, -9]
+      },
+      "Batalla de Salta": {
+        coords: [-24.718760, -65.388013],
+        terminal: false,
+        labelDir: "left",
+        labelOffset: [-9, 0]
+      },
+      "Salta": {
+        coords: [-24.777147, -65.411374],
+        terminal: true,
+        accentColor: "#f59e0b",
+        labelDir: "right",
+        labelOffset: [10, 0]
+      },
+      "José de San Martín": {
+        coords: [-24.800673, -65.447678],
+        terminal: false,
+        labelDir: "right",
+        labelOffset: [9, 0]
+      },
+      "Macacha Güemes": {
+        coords: [-24.830476, -65.458772],
+        terminal: false,
+        labelDir: "right",
+        labelOffset: [9, 0]
+      },
+      "Pacto de los Cerrillos": {
+        coords: [-24.900670, -65.491876],
+        terminal: false,
+        labelDir: "right",
+        labelOffset: [9, 0]
+      },
+      "Combate de Rosario de Lerma": {
+        coords: [-24.979004, -65.580940],
+        terminal: false,
+        labelDir: "bottom",
+        labelOffset: [0, 9]
+      },
+      "Campo Quijano": {
+        coords: [-24.913133, -65.643591],
+        terminal: true,
+        accentColor: "#10b981",
+        labelDir: "left",
+        labelOffset: [-10, 0]
+      }
+    };
+
+    // Traza oficial IGN Argentina · FC General Belgrano Ramal C13 (Güemes – Salta)
+    const TRACK_GUEMES_TO_SALTA = [
+      [-24.669066, -65.046185], // Güemes
+      [-24.667513, -65.048107],
+      [-24.660166, -65.062235],
+      [-24.653860, -65.073746],
+      [-24.652046, -65.080795],
+      [-24.652195, -65.084007],
+      [-24.653920, -65.088915],
+      [-24.656240, -65.091562],
+      [-24.662932, -65.094328],
+      [-24.665014, -65.097540],
+      [-24.665014, -65.098879],
+      [-24.663140, -65.104470],
+      [-24.663200, -65.106701], // Campo Santo (El Bordo)
+      [-24.669267, -65.118241],
+      [-24.681165, -65.141590],
+      [-24.695709, -65.169816],
+      [-24.704364, -65.196734],
+      [-24.707101, -65.219577],
+      [-24.707815, -65.225139], // Betania
+      [-24.706684, -65.232902],
+      [-24.705316, -65.245364],
+      [-24.705465, -65.255388],
+      [-24.707428, -65.265143],
+      [-24.708320, -65.272103],
+      [-24.707785, -65.276862],
+      [-24.709837, -65.291912],
+      [-24.712276, -65.297831],
+      [-24.711771, -65.302858],
+      [-24.709986, -65.307260],
+      [-24.711027, -65.311662],
+      [-24.710462, -65.314309],
+      [-24.712127, -65.317343],
+      [-24.713525, -65.325820],
+      [-24.713972, -65.334802],
+      [-24.712157, -65.341822],
+      [-24.712574, -65.344945],
+      [-24.711057, -65.349614],
+      [-24.708528, -65.352737],
+      [-24.708172, -65.359043],
+      [-24.706090, -65.364307],
+      [-24.705495, -65.368323],
+      [-24.702253, -65.372933],
+      [-24.701807, -65.375223],
+      [-24.702937, -65.378019],
+      [-24.709867, -65.383105],
+      [-24.714656, -65.385871],
+      [-24.718760, -65.388013], // Batalla de Salta
+      [-24.720991, -65.391433],
+      [-24.724025, -65.392415],
+      [-24.728189, -65.391909],
+      [-24.732174, -65.392831],
+      [-24.751597, -65.399553],
+      [-24.768342, -65.405175],
+      [-24.774737, -65.407405],
+      [-24.776492, -65.409309],
+      [-24.777147, -65.411374]  // Salta
+    ];
+
+    // Traza oficial IGN Argentina · FC General Belgrano Ramales C13 + C14 (Salta – Campo Quijano)
+    const TRACK_SALTA_TO_QUIJANO = [
+      [-24.777147, -65.411374], // Salta
+      [-24.778782, -65.416775],
+      [-24.780061, -65.419600],
+      [-24.784850, -65.426322],
+      [-24.799424, -65.446072],
+      [-24.800673, -65.447678], // José de San Martín
+      [-24.805254, -65.451247],
+      [-24.812005, -65.453240],
+      [-24.820690, -65.455322],
+      [-24.825301, -65.456512],
+      [-24.830476, -65.458772], // Macacha Güemes
+      [-24.839934, -65.463412],
+      [-24.862539, -65.474090],
+      [-24.879493, -65.482121],
+      [-24.892074, -65.488039],
+      [-24.900670, -65.491876], // Pacto de los Cerrillos
+      [-24.909295, -65.492220], // Empalme Cerrillos (C13 -> C14)
+      [-24.912491, -65.493930],
+      [-24.915417, -65.497534],
+      [-24.933805, -65.519790],
+      [-24.951262, -65.540920],
+      [-24.969577, -65.563093],
+      [-24.976560, -65.571556],
+      [-24.977870, -65.573661],
+      [-24.978471, -65.575973],
+      [-24.979004, -65.580940], // Combate de Rosario de Lerma
+      [-24.979611, -65.587621],
+      [-24.979326, -65.589542],
+      [-24.978003, -65.591190],
+      [-24.960847, -65.604748],
+      [-24.950314, -65.613071],
+      [-24.932845, -65.626875],
+      [-24.915892, -65.640272],
+      [-24.913833, -65.641899],
+      [-24.913204, -65.642863],
+      [-24.913133, -65.643591]  // Campo Quijano
+    ];
+
+    const TRACK_SALTA_TO_GUEMES = [...TRACK_GUEMES_TO_SALTA].reverse();
+    const TRACK_QUIJANO_TO_SALTA = [...TRACK_SALTA_TO_QUIJANO].reverse();
+
+    function getServicePolyline(service) {
+      if (service.linea === "Güemes → Salta") return TRACK_GUEMES_TO_SALTA;
+      if (service.linea === "Salta → Güemes") return TRACK_SALTA_TO_GUEMES;
+      if (service.linea === "Salta → Campo Quijano") return TRACK_SALTA_TO_QUIJANO;
+      return TRACK_QUIJANO_TO_SALTA;
+    }
+
+    function parseHHMM(str) {
+      const [h, m] = str.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function nearestVertexIndex(pts, targetCoords) {
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const d = Math.hypot(pts[i][0] - targetCoords[0], pts[i][1] - targetCoords[1]);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }
+
+    function makeService(regime, linea, tren, clase, stopsList) {
+      const depMins = parseHHMM(stopsList[0].time);
+      const endMins = parseHHMM(stopsList[stopsList.length - 1].time);
+      const duracionMin = endMins - depMins;
+      const pts = getServicePolyline({ linea });
+      const enrichedStops = stopsList.map((st) => ({
+        name: st.name,
+        time: st.time,
+        elapsed: parseHHMM(st.time) - depMins,
+        vertexIdx: nearestVertexIndex(pts, STATIONS[st.name].coords)
+      }));
+
+      return {
+        regime,
+        linea,
+        tren,
+        clase,
+        origen: stopsList[0].name,
+        destino: stopsList[stopsList.length - 1].name,
+        salida: stopsList[0].time,
+        llegada: stopsList[stopsList.length - 1].time,
+        depMins,
+        duracionMin,
+        stops: enrichedStops
+      };
+    }
+
+    function buildSaltaServices() {
+      const monFri = [
+        // Güemes -> Salta (Lunes a viernes)
+        makeService("mon_fri", "Güemes → Salta", "Tren 1101", "Regional · Ramal C13", [
+          { name: "Güemes", time: "06:10" },
+          { name: "Campo Santo (El Bordo)", time: "06:29" },
+          { name: "Betania", time: "06:40" },
+          { name: "Batalla de Salta", time: "07:30" },
+          { name: "Salta", time: "07:45" }
+        ]),
+        makeService("mon_fri", "Güemes → Salta", "Tren 1103", "Regional · Ramal C13", [
+          { name: "Güemes", time: "07:15" },
+          { name: "Campo Santo (El Bordo)", time: "07:34" },
+          { name: "Betania", time: "07:45" },
+          { name: "Batalla de Salta", time: "08:35" },
+          { name: "Salta", time: "08:50" }
+        ]),
+        makeService("mon_fri", "Güemes → Salta", "Tren 1105", "Regional · Ramal C13", [
+          { name: "Güemes", time: "14:30" },
+          { name: "Campo Santo (El Bordo)", time: "14:49" },
+          { name: "Betania", time: "15:00" },
+          { name: "Batalla de Salta", time: "15:50" },
+          { name: "Salta", time: "16:05" }
+        ]),
+
+        // Salta -> Campo Quijano (Lunes a viernes)
+        makeService("mon_fri", "Salta → Campo Quijano", "Tren 1201", "Regional · Ramales C13 / C14", [
+          { name: "Salta", time: "16:08" },
+          { name: "José de San Martín", time: "16:18" },
+          { name: "Macacha Güemes", time: "16:39" },
+          { name: "Pacto de los Cerrillos", time: "16:57" },
+          { name: "Combate de Rosario de Lerma", time: "17:22" },
+          { name: "Campo Quijano", time: "17:44" }
+        ]),
+
+        // Campo Quijano -> Salta (Lunes a viernes)
+        makeService("mon_fri", "Campo Quijano → Salta", "Tren 1200", "Regional · Ramales C14 / C13", [
+          { name: "Campo Quijano", time: "05:45" },
+          { name: "Combate de Rosario de Lerma", time: "06:08" },
+          { name: "Pacto de los Cerrillos", time: "06:33" },
+          { name: "Macacha Güemes", time: "06:51" },
+          { name: "José de San Martín", time: "07:11" },
+          { name: "Salta", time: "07:21" }
+        ]),
+
+        // Salta -> Güemes (Lunes a viernes)
+        makeService("mon_fri", "Salta → Güemes", "Tren 1102", "Regional · Ramal C13", [
+          { name: "Salta", time: "12:30" },
+          { name: "Batalla de Salta", time: "12:45" },
+          { name: "Betania", time: "13:35" },
+          { name: "Campo Santo (El Bordo)", time: "13:49" },
+          { name: "Güemes", time: "14:05" }
+        ]),
+        makeService("mon_fri", "Salta → Güemes", "Tren 1104", "Regional · Ramal C13", [
+          { name: "Salta", time: "19:30" },
+          { name: "Batalla de Salta", time: "19:45" },
+          { name: "Betania", time: "20:35" },
+          { name: "Campo Santo (El Bordo)", time: "20:49" },
+          { name: "Güemes", time: "21:05" }
+        ]),
+        makeService("mon_fri", "Salta → Güemes", "Tren 1106", "Regional · Ramal C13", [
+          { name: "Salta", time: "20:45" },
+          { name: "Batalla de Salta", time: "21:00" },
+          { name: "Betania", time: "21:50" },
+          { name: "Campo Santo (El Bordo)", time: "22:04" },
+          { name: "Güemes", time: "22:20" }
+        ])
+      ];
+
+      const saturday = [
+        // Sábados: Tren 1101 y Tren 1102
+        makeService("saturday", "Güemes → Salta", "Tren 1101", "Regional · Ramal C13", [
+          { name: "Güemes", time: "06:10" },
+          { name: "Campo Santo (El Bordo)", time: "06:29" },
+          { name: "Betania", time: "06:40" },
+          { name: "Batalla de Salta", time: "07:30" },
+          { name: "Salta", time: "07:45" }
+        ]),
+        makeService("saturday", "Salta → Güemes", "Tren 1102", "Regional · Ramal C13", [
+          { name: "Salta", time: "12:30" },
+          { name: "Batalla de Salta", time: "12:45" },
+          { name: "Betania", time: "13:35" },
+          { name: "Campo Santo (El Bordo)", time: "13:49" },
+          { name: "Güemes", time: "14:05" }
+        ])
+      ];
+
+      return {
+        mon_fri: monFri.sort((a, b) => a.depMins - b.depMins),
+        saturday: saturday.sort((a, b) => a.depMins - b.depMins),
+        sunday: []
+      };
+    }
+
+    const SERVICES_BY_REGIME = buildSaltaServices();
+
+    const REGIME_LABELS = {
+      mon_fri: "Lunes a viernes",
+      saturday: "Sábados",
+      sunday: "Domingos (Sin servicio)"
+    };
+
+    function formatMinutes(totalMins) {
+      const m = ((Math.floor(totalMins) % 1440) + 1440) % 1440;
+      return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    }
+
+    function formatClockWithSeconds(totalMins) {
+      const totalSecs = ((Math.floor(totalMins * 60) % 86400) + 86400) % 86400;
+      const hh = Math.floor(totalSecs / 3600);
+      const mm = Math.floor((totalSecs % 3600) / 60);
+      const ss = totalSecs % 60;
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    }
+
+    function computeSegmentHeadingDeg(p1, p2) {
+      const midLatRad = (((p1[0] + p2[0]) / 2) * Math.PI) / 180;
+      const dx = (p2[1] - p1[1]) * Math.cos(midLatRad);
+      const dy = p2[0] - p1[0];
+      if (Math.abs(dx) < 1e-12 && Math.abs(dy) < 1e-12) return 0;
+      return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+    }
+
+    function offsetLateralStarboard(pos, headingDeg, lateralMeters) {
+      const rightBearingRad = ((headingDeg + 90) * Math.PI) / 180;
+      const latRad = (pos[0] * Math.PI) / 180;
+      const dLat = (lateralMeters * Math.cos(rightBearingRad)) / 111320;
+      const dLon = (lateralMeters * Math.sin(rightBearingRad)) / (111320 * Math.max(0.2, Math.cos(latRad)));
+      return [pos[0] + dLat, pos[1] + dLon];
+    }
+
+    function interpolateAlongPolyline(pts, frac) {
+      if (pts.length === 1) return { pos: pts[0], headingDeg: 0 };
+      const segLens = [];
+      let totalLen = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const dLat = pts[i + 1][0] - pts[i][0];
+        const dLon = (pts[i + 1][1] - pts[i][1]) * Math.cos(((pts[i][0] + pts[i + 1][0]) * Math.PI) / 360);
+        const len = Math.hypot(dLat, dLon);
+        segLens.push(len);
+        totalLen += len;
+      }
+      const target = Math.max(0, Math.min(1, frac)) * totalLen;
+      let acc = 0;
+      for (let i = 0; i < segLens.length; i++) {
+        if (acc + segLens[i] >= target || i === segLens.length - 1) {
+          const localFrac = segLens[i] > 0 ? (target - acc) / segLens[i] : 0;
+          const pA = pts[i];
+          const pB = pts[i + 1];
+          return {
+            pos: [pA[0] + (pB[0] - pA[0]) * localFrac, pA[1] + (pB[1] - pA[1]) * localFrac],
+            headingDeg: computeSegmentHeadingDeg(pA, pB)
+          };
+        }
+        acc += segLens[i];
+      }
+      return { pos: pts[pts.length - 1], headingDeg: 0 };
+    }
+
+    function getElapsedIfActive(service, normalizedMins) {
+      const dep = service.depMins;
+      const end = dep + service.duracionMin;
+      if (normalizedMins >= dep && normalizedMins <= end) {
+        return normalizedMins - dep;
+      }
+      return null;
+    }
+
+    function getTrainPositionAtElapsed(service, elapsedMin) {
+      const fullPts = getServicePolyline(service);
+      const stops = service.stops;
+
+      for (let i = 0; i < stops.length - 1; i++) {
+        const sA = stops[i];
+        const sB = stops[i + 1];
+        if (elapsedMin >= sA.elapsed && elapsedMin <= sB.elapsed) {
+          const segSpan = Math.max(0.001, sB.elapsed - sA.elapsed);
+          const localFrac = Math.max(0, Math.min(1, (elapsedMin - sA.elapsed) / segSpan));
+          const subPts = fullPts.slice(sA.vertexIdx, sB.vertexIdx + 1);
+          const interp = interpolateAlongPolyline(subPts.length ? subPts : fullPts, localFrac);
+          return {
+            pos: offsetLateralStarboard(interp.pos, interp.headingDeg, 35),
+            headingDeg: interp.headingDeg,
+            statusText: `Próxima parada: ${sB.name} (${sB.time})`
+          };
+        }
+      }
+
+      const lastStop = stops[stops.length - 1];
+      const endInterp = interpolateAlongPolyline(fullPts, 1);
+      return {
+        pos: offsetLateralStarboard(endInterp.pos, endInterp.headingDeg, 35),
+        headingDeg: endInterp.headingDeg,
+        statusText: `Llegando a ${lastStop.name} (${lastStop.time})`
+      };
+    }
+
+    const routesLayer = L.layerGroup().addTo(map);
+    const stationsLayer = L.layerGroup().addTo(map);
+    const activeMarkersLayer = L.layerGroup().addTo(map);
+
+    let activeRegime = 'mon_fri';
+    let speedMultiplier = 150;
+    let lineFilter = 'ALL';
+    let simMinutes = 6 * 60 + 15;
+    let isPlaying = true;
+    let lastTimestamp = performance.now();
+
+    function getActiveServices() {
+      return SERVICES_BY_REGIME[activeRegime] || [];
+    }
+
+    function updateRegimeCountsUI() {
+      const svcs = getActiveServices();
+      const total = svcs.length;
+      const gsCount = svcs.filter((s) => s.linea === 'Güemes → Salta').length;
+      const sgCount = svcs.filter((s) => s.linea === 'Salta → Güemes').length;
+      const scqCount = svcs.filter((s) => s.linea === 'Salta → Campo Quijano').length;
+      const cqsCount = svcs.filter((s) => s.linea === 'Campo Quijano → Salta').length;
+
+      document.getElementById('label-filter-all').textContent = `Todos (${total})`;
+      document.getElementById('label-filter-g-s').textContent = `Güemes → Salta (${gsCount})`;
+      document.getElementById('label-filter-s-g').textContent = `Salta → Güemes (${sgCount})`;
+      document.getElementById('label-filter-s-cq').textContent = `Salta → C. Quijano (${scqCount})`;
+      document.getElementById('label-filter-cq-s').textContent = `C. Quijano → Salta (${cqsCount})`;
+      document.getElementById('chart-subtitle').textContent = `${total} servicios diarios · ${REGIME_LABELS[activeRegime]}`;
+    }
+
+    function fitMapBounds(animate = true) {
+      const headerEl = document.getElementById('top-header');
+      const bottomEl = document.getElementById('bottom-bar');
+      const topPad = (headerEl ? headerEl.offsetHeight : 76) + 28;
+      const bottomPad = (bottomEl ? bottomEl.offsetHeight : 150) + 28;
+      const targetBounds = L.latLngBounds(CORRIDOR_BOUNDS);
+      if (animate) map.flyToBounds(targetBounds, { paddingTopLeft: [48, topPad], paddingBottomRight: [48, bottomPad], duration: 0.75 });
+      else map.fitBounds(targetBounds, { paddingTopLeft: [48, topPad], paddingBottomRight: [48, bottomPad], animate: false });
+    }
+
+    function renderNetworkGeometry() {
+      routesLayer.clearLayers();
+      stationsLayer.clearLayers();
+
+      // Halo oscuro continuo
+      L.polyline(TRACK_GUEMES_TO_SALTA, { color: '#020617', weight: 8.5, opacity: 0.88 }).addTo(routesLayer);
+      L.polyline(TRACK_SALTA_TO_QUIJANO, { color: '#020617', weight: 8.5, opacity: 0.88 }).addTo(routesLayer);
+
+      // Ramal Güemes – Salta
+      const gsColor = lineFilter === 'Salta → Güemes' ? '#f59e0b' : '#38bdf8';
+      const gsOpacity = (lineFilter === 'Salta → Campo Quijano' || lineFilter === 'Campo Quijano → Salta') ? 0.25 : 0.94;
+      L.polyline(TRACK_GUEMES_TO_SALTA, { color: gsColor, weight: 4.5, opacity: gsOpacity }).addTo(routesLayer);
+
+      // Ramal Salta – Campo Quijano
+      const scqColor = lineFilter === 'Campo Quijano → Salta' ? '#a855f7' : '#10b981';
+      const scqOpacity = (lineFilter === 'Güemes → Salta' || lineFilter === 'Salta → Güemes') ? 0.25 : 0.94;
+      L.polyline(TRACK_SALTA_TO_QUIJANO, { color: scqColor, weight: 4.5, opacity: scqOpacity }).addTo(routesLayer);
+
+      // Estaciones (cabeceras siempre visibles; intermedias visibles al hacer zoom > initialZoom)
+      Object.entries(STATIONS).forEach(([name, st]) => {
+        const isTerminal = Boolean(st.terminal);
+        const marker = L.circleMarker(st.coords, {
+          radius: isTerminal ? 6.5 : 3.8,
+          color: '#020617',
+          weight: isTerminal ? 2 : 1.4,
+          fillColor: isTerminal ? st.accentColor : '#f8fafc',
+          fillOpacity: 1
+        });
+        marker.bindTooltip(name, {
+          permanent: true,
+          direction: st.labelDir || 'top',
+          offset: st.labelOffset || [0, -9],
+          className: isTerminal ? 'cabecera-label' : 'station-label'
+        });
+        marker.addTo(stationsLayer);
+      });
+    }
+
+    const CHART_SERIES_CONFIG = [
+      { key: "Güemes → Salta",        linea: "Güemes → Salta",        label: "Güemes → Salta",        strokeColor: "#0284c7", dotFill: "#0284c7", dotBorder: "#ffffff", dy: -0.9 },
+      { key: "Salta → Güemes",        linea: "Salta → Güemes",        label: "Salta → Güemes",        strokeColor: "#f59e0b", dotFill: "#f59e0b", dotBorder: "#ffffff", dy: -0.3 },
+      { key: "Salta → Campo Quijano", linea: "Salta → Campo Quijano", label: "Salta → C. Quijano",    strokeColor: "#10b981", dotFill: "#10b981", dotBorder: "#ffffff", dy: 0.3 },
+      { key: "Campo Quijano → Salta", linea: "Campo Quijano → Salta", label: "C. Quijano → Salta",    strokeColor: "#a855f7", dotFill: "#a855f7", dotBorder: "#ffffff", dy: 0.9 }
+    ];
+
+    let evolutionSeriesCache = [];
+    let chartYMax = 3;
+
+    function countTrainsAtMinute(normalizedMins) {
+      const counts = { total: 0 };
+      CHART_SERIES_CONFIG.forEach((s) => { counts[s.key] = 0; });
+      getActiveServices().forEach((svc) => {
+        if (lineFilter !== 'ALL' && svc.linea !== lineFilter) return;
+        if (getElapsedIfActive(svc, normalizedMins) !== null) {
+          counts[svc.linea] = (counts[svc.linea] || 0) + 1;
+          counts.total += 1;
+        }
+      });
+      return counts;
+    }
+
+    function rebuildEvolutionCache() {
+      evolutionSeriesCache = [];
+      let peak = 3;
+      for (let m = 0; m <= 1440; m += 1) {
+        const evalMin = m === 1440 ? 1439 : m;
+        const c = countTrainsAtMinute(evalMin);
+        if (c.total > peak) peak = c.total;
+        evolutionSeriesCache.push({ minute: m, ...c });
+      }
+      chartYMax = Math.max(3, peak);
+    }
+
+    function drawEvolutionChart(normalizedMins, liveCounts) {
+      const canvas = document.getElementById("evolution-chart");
+      const container = document.getElementById("chart-container");
+      if (!canvas || !container || container.classList.contains("hidden")) return;
+
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.floor(rect.width);
+      const height = Math.floor(rect.height);
+      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+      }
+
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, width, height);
+
+      const padLeft = 28, padRight = 14, padTop = 18, padBottom = 20;
+      const plotW = Math.max(40, width - padLeft - padRight);
+      const plotH = Math.max(24, height - padTop - padBottom);
+
+      const yMax = chartYMax;
+      const xForMinute = (m) => padLeft + (m / 1440) * plotW;
+      const yForValue = (v) => padTop + plotH - (v / yMax) * plotH;
+
+      ctx.font = "600 9.5px Inter, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (let v = 0; v <= yMax; v++) {
+        const y = Math.round(yForValue(v)) + 0.5;
+        ctx.strokeStyle = v === 0 ? "rgba(148,163,184,0.35)" : "rgba(148,163,184,0.16)";
+        ctx.lineWidth = v === 0 ? 1.1 : 0.8;
+        ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(padLeft + plotW, y); ctx.stroke();
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillText(String(v), padLeft - 6, y);
+      }
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (let h = 0; h <= 24; h += 3) {
+        const m = h === 24 ? 1440 : h * 60;
+        const x = Math.round(xForMinute(m)) + 0.5;
+        ctx.strokeStyle = "rgba(148,163,184,0.16)";
+        ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(x, padTop); ctx.lineTo(x, padTop + plotH); ctx.stroke();
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillText(h === 24 ? "23:59" : `${String(h).padStart(2, "0")}:00`, x, padTop + plotH + 4);
+      }
+
+      const visibleSeries = CHART_SERIES_CONFIG.filter((s) => lineFilter === 'ALL' || s.linea === lineFilter);
+      visibleSeries.forEach((s) => {
+        ctx.beginPath();
+        evolutionSeriesCache.forEach((pt, idx) => {
+          const x = xForMinute(pt.minute);
+          const y = yForValue(pt[s.key] || 0) + s.dy;
+          if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.lineTo(xForMinute(1440), yForValue(0));
+        ctx.lineTo(xForMinute(0), yForValue(0));
+        ctx.closePath();
+        ctx.fillStyle = `${s.strokeColor}22`;
+        ctx.fill();
+
+        ctx.beginPath();
+        evolutionSeriesCache.forEach((pt, idx) => {
+          const x = xForMinute(pt.minute);
+          const y = yForValue(pt[s.key] || 0) + s.dy;
+          if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = s.strokeColor;
+        ctx.lineWidth = 2.1;
+        ctx.lineJoin = "round";
+        ctx.stroke();
+      });
+
+      const cursorX = xForMinute(normalizedMins);
+      ctx.save();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(cursorX, padTop - 3); ctx.lineTo(cursorX, padTop + plotH); ctx.stroke();
+      ctx.restore();
+
+      visibleSeries.forEach((s) => {
+        const cy = yForValue(liveCounts[s.key] || 0) + s.dy;
+        ctx.beginPath(); ctx.arc(cursorX, cy, 4.2, 0, Math.PI * 2);
+        ctx.fillStyle = s.dotFill; ctx.fill();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = s.dotBorder; ctx.stroke();
+      });
+
+      const badgeText = `${formatMinutes(normalizedMins)} · ${liveCounts.total} tren${liveCounts.total === 1 ? "" : "es"}`;
+      ctx.font = "700 9.5px Inter, sans-serif";
+      const pillW = ctx.measureText(badgeText).width + 12;
+      const pillX = Math.max(padLeft, Math.min(padLeft + plotW - pillW, cursorX - pillW / 2));
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath(); ctx.roundRect(pillX, 1, pillW, 15, 5); ctx.fill();
+      ctx.fillStyle = "#020617"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(badgeText, pillX + pillW / 2, 9);
+      ctx.restore();
+    }
+
+    function renderFrame() {
+      activeMarkersLayer.clearLayers();
+      const normalizedMins = ((simMinutes % 1440) + 1440) % 1440;
+      document.getElementById('clock-display').textContent = formatClockWithSeconds(normalizedMins);
+      document.getElementById('time-slider').value = Math.floor(normalizedMins);
+
+      let activeCount = 0;
+      getActiveServices().forEach((svc) => {
+        if (lineFilter !== 'ALL' && svc.linea !== lineFilter) return;
+        const elapsed = getElapsedIfActive(svc, normalizedMins);
+        if (elapsed !== null) {
+          const posInfo = getTrainPositionAtElapsed(svc, elapsed);
+          if (!posInfo) return;
+          activeCount += 1;
+          const meta = LINE_META[svc.linea];
+          const ballIcon = L.divIcon({
+            className: '',
+            html: `<div class="${meta.ballClass}" style="transform: rotate(${posInfo.headingDeg.toFixed(1)}deg);">
+              <svg class="train-ball-arrow" viewBox="0 0 12 12" fill="none"><path d="M6 1L10.5 10.5L6 8.2L1.5 10.5L6 1Z" fill="#ffffff"/></svg>
+            </div>`,
+            iconSize: [24, 24], iconAnchor: [12, 12]
+          });
+
+          L.marker(posInfo.pos, { icon: ballIcon })
+            .bindTooltip(
+              `<strong>${svc.tren} · ${svc.linea}</strong><br/><span style="color:#cbd5e1;font-size:10.5px;">${svc.clase}</span><br/>${svc.origen} → ${svc.destino} (${svc.salida} – ${svc.llegada})<br/><span style="color:#fde68a;">${posInfo.statusText}</span>`,
+              { direction: 'top', offset: [0, -13] }
+            )
+            .addTo(activeMarkersLayer);
+        }
+      });
+
+      document.getElementById('active-count-pill').textContent = `${activeCount} en circulación`;
+      drawEvolutionChart(normalizedMins, countTrainsAtMinute(normalizedMins));
+    }
+
+    function loop(timestamp) {
+      const dtSeconds = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+      if (isPlaying) {
+        simMinutes = (simMinutes + (dtSeconds * speedMultiplier) / 60) % 1440;
+        renderFrame();
+      }
+      requestAnimationFrame(loop);
+    }
+
+    let initialZoom = null;
+
+    function updateIntermediateLabelsVisibility() {
+      const mapEl = map.getContainer();
+      if (!mapEl || initialZoom === null) return;
+      const showIntermediate = map.getZoom() > initialZoom;
+      mapEl.classList.toggle('hide-intermediate-labels', !showIntermediate);
+    }
+
+    window.addEventListener('load', () => {
+      updateRegimeCountsUI();
+      rebuildEvolutionCache();
+      renderNetworkGeometry();
+      fitMapBounds(false);
+      initialZoom = map.getZoom();
+      updateIntermediateLabelsVisibility();
+
+      map.on('zoomend', updateIntermediateLabelsVisibility);
+
+      window.addEventListener('resize', () => { fitMapBounds(false); updateIntermediateLabelsVisibility(); renderFrame(); });
+
+      document.querySelectorAll('.regime-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeRegime = btn.getAttribute('data-regime');
+          document.querySelectorAll('.regime-btn').forEach((b) => {
+            const isSelected = b.getAttribute('data-regime') === activeRegime;
+            if (isSelected) {
+              b.className = 'regime-btn inline-flex items-center gap-1.5 text-[10.5px] sm:text-xs font-extrabold uppercase tracking-wider px-2.5 sm:px-3 py-1 rounded-full bg-sky-400 text-slate-950 border border-sky-200 shadow transition cursor-pointer';
+              b.querySelector('span:first-child').className = 'w-2 h-2 rounded-full bg-slate-950 inline-block';
+            } else {
+              const r = b.getAttribute('data-regime');
+              const dotColor = r === 'sunday' ? 'bg-slate-400' : (r === 'saturday' ? 'bg-amber-400' : 'bg-sky-400');
+              b.className = 'regime-btn inline-flex items-center gap-1.5 text-[10.5px] sm:text-xs font-extrabold uppercase tracking-wider px-2.5 sm:px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-slate-300 border border-white/20 transition cursor-pointer';
+              b.querySelector('span:first-child').className = `w-2 h-2 rounded-full ${dotColor} inline-block`;
+            }
+          });
+          updateRegimeCountsUI();
+          rebuildEvolutionCache();
+          renderNetworkGeometry();
+          renderFrame();
+        });
+      });
+
+      document.getElementById('toggle-chart-btn').addEventListener('click', (e) => {
+        const container = document.getElementById('chart-container');
+        const isHidden = container.classList.toggle('hidden');
+        e.target.textContent = isHidden ? 'Ver gráfico 24h' : 'Ocultar gráfico';
+        fitMapBounds(true);
+        if (!isHidden) renderFrame();
+      });
+
+      const evoCanvas = document.getElementById('evolution-chart');
+      const evoTooltip = document.getElementById('chart-hover-tooltip');
+      function minuteFromCanvasEvent(e) {
+        const rect = evoCanvas.getBoundingClientRect();
+        const plotW = Math.max(40, rect.width - 42);
+        return Math.round((Math.max(0, Math.min(plotW, e.clientX - rect.left - 28)) / plotW) * 1439);
+      }
+
+      evoCanvas.addEventListener('click', (e) => { simMinutes = minuteFromCanvasEvent(e); renderFrame(); });
+      evoCanvas.addEventListener('mousemove', (e) => {
+        const hoverMin = minuteFromCanvasEvent(e);
+        const counts = countTrainsAtMinute(hoverMin);
+        const rect = evoCanvas.getBoundingClientRect();
+        const localX = e.clientX - rect.left;
+        const rows = CHART_SERIES_CONFIG.filter((s) => lineFilter === 'ALL' || s.linea === lineFilter).map((s) =>
+          `<div class="flex items-center justify-between gap-3"><span class="inline-flex items-center gap-1.5"><span style="width:8px;height:8px;border-radius:9999px;display:inline-block;background:${s.dotFill};border:1.5px solid #fff;"></span><span>${s.label}</span></span><strong>${counts[s.key] || 0}</strong></div>`
+        ).join('');
+        evoTooltip.innerHTML = `<div class="font-bold text-white border-b border-white/15 pb-0.5 mb-1">${formatMinutes(hoverMin)} · Total: ${counts.total}</div>${rows}`;
+        evoTooltip.style.left = `${Math.max(8, localX > rect.width - 210 ? localX - 200 : localX + 12)}px`;
+        evoTooltip.style.top = `6px`;
+        evoTooltip.classList.remove('hidden');
+      });
+      evoCanvas.addEventListener('mouseleave', () => evoTooltip.classList.add('hidden'));
+
+      document.querySelectorAll('.line-filter-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          lineFilter = btn.getAttribute('data-filter-line');
+          document.querySelectorAll('.line-filter-btn').forEach((b) => {
+            if (b.getAttribute('data-filter-line') === lineFilter) b.classList.add('bg-white/15', 'text-white', 'font-bold', 'ring-1', 'ring-white/30');
+            else b.classList.remove('bg-white/15', 'text-white', 'font-bold', 'ring-1', 'ring-white/30');
+          });
+          rebuildEvolutionCache();
+          renderNetworkGeometry();
+          renderFrame();
+        });
+      });
+
+      document.getElementById('clock-toggle-btn').addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        document.getElementById('play-state-badge').textContent = isPlaying ? '❚❚' : '▶';
+      });
+
+      document.querySelectorAll('.speed-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          speedMultiplier = Number(btn.getAttribute('data-speed'));
+          document.querySelectorAll('.speed-btn').forEach((b) => {
+            b.className = Number(b.getAttribute('data-speed')) === speedMultiplier
+              ? 'speed-btn text-[10px] font-extrabold px-2 sm:px-2.5 py-0.5 rounded-full bg-sky-500/30 text-sky-200 border border-sky-400/50 cursor-pointer transition'
+              : 'speed-btn text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full text-slate-300 hover:text-white cursor-pointer transition';
+          });
+        });
+      });
+
+      document.getElementById('time-slider').addEventListener('input', (e) => {
+        simMinutes = Number(e.target.value);
+        renderFrame();
+      });
+
+      renderFrame();
+      lastTimestamp = performance.now();
+      requestAnimationFrame(loop);
+    });
+  </script>
+</body>
+</html>
